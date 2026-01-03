@@ -15,6 +15,37 @@
 
   const repeatTimers = new Map();
 
+  function dispatchWheelScroll(deltaX, deltaY) {
+    if (deltaX === 0 && deltaY === 0) {
+      return;
+    }
+
+    const target =
+      document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2) ||
+      document.scrollingElement ||
+      document.documentElement;
+
+    const wheelEvent = new WheelEvent("wheel", {
+      deltaX,
+      deltaY,
+      deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+      clientX: window.innerWidth / 2,
+      clientY: window.innerHeight / 2,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    target.dispatchEvent(wheelEvent);
+
+    if (!wheelEvent.defaultPrevented) {
+      (document.scrollingElement || window).scrollBy({
+        left: deltaX,
+        top: deltaY,
+        behavior: "auto",
+      });
+    }
+  }
+
   function readInitialZoom() {
     const existingZoom = parseFloat(document.documentElement.style.zoom);
     return Number.isFinite(existingZoom) && existingZoom > 0 ? existingZoom : 1;
@@ -45,13 +76,7 @@
     const horizontal = normalizeAxisValue(pickAxis(axes, [0, 2]));
     const vertical = normalizeAxisValue(pickAxis(axes, [1, 3]));
 
-    if (horizontal !== 0 || vertical !== 0) {
-      window.scrollBy({
-        left: horizontal * ANALOG_SCROLL_STEP,
-        top: vertical * ANALOG_SCROLL_STEP,
-        behavior: "auto",
-      });
-    }
+    dispatchWheelScroll(horizontal * ANALOG_SCROLL_STEP, vertical * ANALOG_SCROLL_STEP);
   }
 
   function shouldRepeat(key, pressed, now) {
@@ -76,16 +101,16 @@
     const rightPressed = (buttons[15]?.pressed ?? false) || (buttons[15]?.value ?? 0) > 0.5;
 
     if (shouldRepeat("ArrowUp", upPressed, now)) {
-      window.scrollBy({ top: -DPAD_SCROLL_STEP, left: 0, behavior: "auto" });
+      dispatchWheelScroll(0, -DPAD_SCROLL_STEP);
     }
     if (shouldRepeat("ArrowDown", downPressed, now)) {
-      window.scrollBy({ top: DPAD_SCROLL_STEP, left: 0, behavior: "auto" });
+      dispatchWheelScroll(0, DPAD_SCROLL_STEP);
     }
     if (shouldRepeat("ArrowLeft", leftPressed, now)) {
-      window.scrollBy({ top: 0, left: -DPAD_SCROLL_STEP, behavior: "auto" });
+      dispatchWheelScroll(-DPAD_SCROLL_STEP, 0);
     }
     if (shouldRepeat("ArrowRight", rightPressed, now)) {
-      window.scrollBy({ top: 0, left: DPAD_SCROLL_STEP, behavior: "auto" });
+      dispatchWheelScroll(DPAD_SCROLL_STEP, 0);
     }
   }
 
