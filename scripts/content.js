@@ -8,6 +8,7 @@
   const ZOOM_INTERVAL_MS = 140;
   const MIN_ZOOM = 0.5;
   const MAX_ZOOM = 3;
+  const PAGE_SCROLL_RATIO = 0.9;
 
   let animationId = null;
   let zoomLevel = readInitialZoom();
@@ -41,6 +42,37 @@
       (document.scrollingElement || window).scrollBy({
         left: deltaX,
         top: deltaY,
+        behavior: "auto",
+      });
+    }
+  }
+
+  function dispatchKeyboardScroll(key) {
+    const target =
+      document.activeElement && document.activeElement !== document.body
+        ? document.activeElement
+        : document.body;
+    const scrollTarget = document.scrollingElement || document.documentElement;
+    const delta =
+      key === "PageDown"
+        ? window.innerHeight * PAGE_SCROLL_RATIO
+        : -window.innerHeight * PAGE_SCROLL_RATIO;
+
+    const keyboardEvent = new KeyboardEvent("keydown", {
+      key,
+      code: key,
+      keyCode: key === "PageDown" ? 34 : 33,
+      which: key === "PageDown" ? 34 : 33,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    target.dispatchEvent(keyboardEvent);
+
+    if (!keyboardEvent.defaultPrevented) {
+      scrollTarget.scrollBy({
+        left: 0,
+        top: delta,
         behavior: "auto",
       });
     }
@@ -114,6 +146,19 @@
     }
   }
 
+  function handlePageButtons(buttons, now) {
+    const pageUpPressed = (buttons[4]?.pressed ?? false) || (buttons[4]?.value ?? 0) > 0.5;
+    const pageDownPressed = (buttons[5]?.pressed ?? false) || (buttons[5]?.value ?? 0) > 0.5;
+
+    if (shouldRepeat("PageUp", pageUpPressed, now)) {
+      dispatchKeyboardScroll("PageUp");
+    }
+
+    if (shouldRepeat("PageDown", pageDownPressed, now)) {
+      dispatchKeyboardScroll("PageDown");
+    }
+  }
+
   function applyZoom(delta) {
     const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomLevel + delta));
     if (nextZoom !== zoomLevel) {
@@ -152,6 +197,7 @@
       hasPad = true;
       scrollByAnalog(pad.axes || []);
       scrollWithButtons(pad.buttons || [], now);
+      handlePageButtons(pad.buttons || [], now);
       handleZoom(pad.buttons || [], now);
     }
 
