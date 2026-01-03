@@ -1,15 +1,16 @@
-# gamepad-page-scroller
+## Gamepad Navigation for Chrome
 
-Расширение Google Chrome, позволяющее листать страницы и менять масштаб сайта при помощи геймпада.
+A Google Chrome extension that lets you scroll pages and change a website’s zoom level using a gamepad.
 
-## Возможности
-- Прокрутка вверх/вниз и влево/вправо любым стиком — скорость зависит от отклонения.
-- D-pad выполняет роль стрелок клавиатуры с автоповтором при удержании.
-- Задние триггеры уменьшают и увеличивают масштаб страницы.
+## Features
 
-## Установка
-1. Откройте `chrome://extensions` в Chrome.
-2. Включите «Режим разработчика».
-3. Нажмите «Загрузить распакованное расширение» и выберите папку репозитория.
+- Scroll up/down and left/right with either analog stick — speed depends on stick deflection.
+- The D-pad acts like the keyboard arrow keys, with auto-repeat while held.
+- Rear triggers decrease/increase the page zoom.
 
-После загрузки откройте нужную страницу и используйте геймпад для навигации.
+## Installation
+
+1. Open `chrome://extensions` in Chrome.
+2. Enable **Developer mode**.
+3. Click **Load unpacked** and select the repository folder.
+4. After loading, open any page and use your gamepad to navigate.
