@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Gamepad Page Scroller",
+  "version": "1.0.0",
+  "description": "Листайте страницы и управляйте масштабом с помощью геймпада, имитируя стрелки клавиатуры.",
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "scripts/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
