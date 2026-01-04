@@ -1,6 +1,7 @@
 (() => {
   const DEADZONE = 0.25;
   const ANALOG_SCROLL_STEP = 48;
+  const ANALOG_DRAG_STEP = 45;
   const DPAD_SCROLL_STEP = 50;
   const BUTTON_REPEAT_MS = 85;
   const TRIGGER_THRESHOLD = 0.35;
@@ -9,12 +10,41 @@
   const MIN_ZOOM = 0.5;
   const MAX_ZOOM = 3;
   const PAGE_SCROLL_RATIO = 0.9;
+  const DRAG_POINTER_ID = 9999;
 
   let animationId = null;
   let zoomLevel = readInitialZoom();
   let lastZoomChange = 0;
+  let lastPointerPosition = {
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+  };
+  let dragState = {
+    active: false,
+    startPosition: null,
+    currentPosition: null,
+    target: null,
+  };
 
   const repeatTimers = new Map();
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function updatePointerPosition(event) {
+    if (!event.isTrusted) {
+      return;
+    }
+
+    lastPointerPosition = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+  }
+
+  window.addEventListener("mousemove", updatePointerPosition, true);
+  window.addEventListener("pointermove", updatePointerPosition, true);
 
   function dispatchWheelScroll(deltaX, deltaY) {
     if (deltaX === 0 && deltaY === 0) {
@@ -93,20 +123,9 @@
     return Math.sign(value) * scaled;
   }
 
-  function pickAxis(axes, positions) {
-    let strongest = 0;
-    for (const index of positions) {
-      const current = axes[index] ?? 0;
-      if (Math.abs(current) > Math.abs(strongest)) {
-        strongest = current;
-      }
-    }
-    return strongest;
-  }
-
   function scrollByAnalog(axes) {
-    const horizontal = normalizeAxisValue(pickAxis(axes, [0, 2]));
-    const vertical = normalizeAxisValue(pickAxis(axes, [1, 3]));
+    const horizontal = normalizeAxisValue(axes[0] ?? 0);
+    const vertical = normalizeAxisValue(axes[1] ?? 0);
 
     dispatchWheelScroll(horizontal * ANALOG_SCROLL_STEP, vertical * ANALOG_SCROLL_STEP);
   }
@@ -167,6 +186,126 @@
     }
   }
 
+  function dispatchDragEvent(target, type, point, { buttons = 0, movementX = 0, movementY = 0 } = {}) {
+    const pointerEvent = new PointerEvent(`pointer${type}`, {
+      pointerId: DRAG_POINTER_ID,
+      pointerType: "mouse",
+      button: 0,
+      buttons,
+      clientX: point.x,
+      clientY: point.y,
+      movementX,
+      movementY,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    const mouseEventType = type === "down" ? "mousedown" : type === "up" ? "mouseup" : "mousemove";
+
+    const mouseEvent = new MouseEvent(mouseEventType, {
+      button: 0,
+      buttons,
+      clientX: point.x,
+      clientY: point.y,
+      movementX,
+      movementY,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    target.dispatchEvent(pointerEvent);
+    target.dispatchEvent(mouseEvent);
+  }
+
+  function startDrag() {
+    const startPoint = {
+      x: clamp(lastPointerPosition.x, 0, window.innerWidth),
+      y: clamp(lastPointerPosition.y, 0, window.innerHeight),
+    };
+    const target = document.elementFromPoint(startPoint.x, startPoint.y) || document.body;
+
+    dragState = {
+      active: true,
+      startPosition: startPoint,
+      currentPosition: startPoint,
+      target,
+    };
+
+    dispatchDragEvent(target, "down", startPoint, { buttons: 1 });
+  }
+
+  function moveDrag(deltaX, deltaY) {
+    if (!dragState.active || !dragState.target) {
+      return;
+    }
+
+    const nextPosition = {
+      x: clamp(dragState.currentPosition.x + deltaX, 0, window.innerWidth),
+      y: clamp(dragState.currentPosition.y + deltaY, 0, window.innerHeight),
+    };
+
+    const movementX = nextPosition.x - dragState.currentPosition.x;
+    const movementY = nextPosition.y - dragState.currentPosition.y;
+
+    dragState.currentPosition = nextPosition;
+
+    dispatchDragEvent(dragState.target, "move", nextPosition, {
+      buttons: 1,
+      movementX,
+      movementY,
+    });
+  }
+
+  function stopDrag() {
+    if (!dragState.active || !dragState.target) {
+      return;
+    }
+
+    dispatchDragEvent(dragState.target, "up", dragState.currentPosition, { buttons: 0 });
+
+    if (
+      dragState.startPosition &&
+      (dragState.startPosition.x !== dragState.currentPosition.x ||
+        dragState.startPosition.y !== dragState.currentPosition.y)
+    ) {
+      const movementX = dragState.startPosition.x - dragState.currentPosition.x;
+      const movementY = dragState.startPosition.y - dragState.currentPosition.y;
+
+      dispatchDragEvent(dragState.target, "move", dragState.startPosition, {
+        buttons: 0,
+        movementX,
+        movementY,
+      });
+    }
+
+    lastPointerPosition = dragState.startPosition || lastPointerPosition;
+
+    dragState = {
+      active: false,
+      startPosition: null,
+      currentPosition: null,
+      target: null,
+    };
+  }
+
+  function handleRightStickDrag(axes) {
+    const horizontal = normalizeAxisValue(axes[2] ?? 0);
+    const vertical = normalizeAxisValue(axes[3] ?? 0);
+
+    if (horizontal === 0 && vertical === 0) {
+      if (dragState.active) {
+        stopDrag();
+      }
+      return;
+    }
+
+    if (!dragState.active) {
+      startDrag();
+    }
+
+    moveDrag(horizontal * ANALOG_DRAG_STEP, vertical * ANALOG_DRAG_STEP);
+  }
+
   function handleZoom(buttons, now) {
     const zoomOutValue = buttons[6]?.value ?? 0;
     const zoomInValue = buttons[7]?.value ?? 0;
@@ -198,6 +337,7 @@
       scrollByAnalog(pad.axes || []);
       scrollWithButtons(pad.buttons || [], now);
       handlePageButtons(pad.buttons || [], now);
+      handleRightStickDrag(pad.axes || []);
       handleZoom(pad.buttons || [], now);
     }
 
